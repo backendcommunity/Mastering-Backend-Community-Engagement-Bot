@@ -63,4 +63,3 @@ module.exports = [
                                                                                                                         
                                                                                                                           `🎊 **Day 30 Celebration:** You made it to the end of the 30-Day Challenge! Thank you for participating, sharing, and growing with us. What is your next big backend goal? Share it below so we can hold you accountable! 🧵👇` // Day 30
                                                                                                                           ];
-]

@@ -49,4 +49,15 @@ if (fs.existsSync(stateFile)) {
 
                                                                                     console.log("Bot is awake and scheduler is running! Waiting for 9:00 AM...");
 
-                                                                                    sendDailyMessage();
+            
+                                                                                    const express = require("express");
+                                                                                    const app = express();
+                                                                                    const port = process.env.PORT || 3000;
+
+                                                                                    app.get("/", (req, res) => {
+                                                                                      res.send("Mastering Backend Bot is running!");
+                                                                                      });
+
+                                                                                      app.listen(port, () => {
+                                                                                        console.log(`Web server listening on port ${port} to keep Render happy`);
+                                                                                        });
