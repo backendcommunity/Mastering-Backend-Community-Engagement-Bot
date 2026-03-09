@@ -48,3 +48,5 @@ if (fs.existsSync(stateFile)) {
                                                                                     });
 
                                                                                     console.log("Bot is awake and scheduler is running! Waiting for 9:00 AM...");
+
+                                                                                    sendDailyMessage();
