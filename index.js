@@ -74,14 +74,27 @@ async function sendDailyMessageToAll() {
                                                                                   }
 
                                                                                       // 2. FETCH USERS AND SEND INDIVIDUAL DMs
-                                                                                          console.log("Fetching user list for DMs...");
-                                                                                              const response = await client.users.list();
-                                                                                                  
-                                                                                                      const users = response.members.filter(
-                                                                                                            (user) => !user.deleted && !user.is_bot && user.id !== "USLACKBOT"
-                                                                                                                );
+                                                                                        console.log("Fetching complete user list for DMs...");
+                                                                                            let users = [];
+                                                                                                let nextCursor;
 
-                                                                                                                    console.log(`Found ${users.length} active users. Starting DM broadcast...`);
+                                                                                                    // Use a loop to keep fetching users if the community has more than 1000 people
+                                                                                                        do {
+                                                                                                              const response = await client.users.list({ 
+                                                                                                                      cursor: nextCursor, 
+                                                                                                                              limit: 1000 
+                                                                                                                                    });
+                                                                                                                                          
+                                                                                                                                                const activeHumans = response.members.filter(
+                                                                                                                                                        (user) => !user.deleted && !user.is_bot && user.id !== "USLACKBOT"
+                                                                                                                                                              );
+                                                                                                                                                                    
+                                                                                                                                                                          users = users.concat(activeHumans);
+                                                                                                                                                                                nextCursor = response.response_metadata?.next_cursor;
+                                                                                                                                                                                      
+                                                                                                                                                                                          } while (nextCursor);
+
+                                                                                                                                                                                              console.log(`✅ Success! Found a total of ${users.length} active users. Starting DM broadcast...`);
 
                                                                                                                         for (const user of users) {
                                                                                                                               try {
