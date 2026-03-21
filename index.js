@@ -10,8 +10,34 @@ const stateFile = "./state.json";
 
 // 1. Keep Render happy with a dummy web server
 const app = express();
+app.use(express.json());
 const port = process.env.PORT || 3000;
 app.get("/", (req, res) => res.send("Mastering Backend DM Bot is running!"));
+app.post("/slack/events", (req, res) => {
+      const { type, challenge, event } = req.body;
+
+        // Step A: Slack's Security Handshake
+            if (type === "url_verification") {
+                return res.status(200).send(challenge);
+                  }
+
+                    // Step B: Handle incoming messages
+                      if (type === "event_callback" && event.type === "message") {
+                          // Ignore messages sent by the bot itself (prevents infinite loops!)
+                              if (event.bot_id) {
+                                    return res.status(200).send("Ignored bot message");
+                                        }
+
+                                            // Log the user's reply!
+                                                console.log("-----------------------------------------");
+                                                    console.log(` NEW REPLY DETECTED!`);
+                                                        console.log(`User ID: ${event.user}`);
+                                                            console.log(`Channel/DM ID: ${event.channel}`);
+                                                                console.log(`Message: "${event.text}"`);
+                                                                    console.log("--------------------------------------");
+                                                                                  res.status(200).send("Event received");
+                                    }
+                                                                                  });
 app.listen(port, () => console.log(`Web server listening on port ${port}`));
 
 // 2. Helper function to pause execution (Crucial for Slack Rate Limiting)
@@ -24,58 +50,59 @@ if (fs.existsSync(stateFile)) {
     day = JSON.parse(data).currentDay;
     }
 
-    async function sendDailyMessageToAll() {
+
+
+
+async function sendDailyMessageToAll() {
       if (day >= messages.length) {
           console.log("All 30 days of messages have been sent!");
               return;
                 }
 
                   try {
-                      console.log(`Fetching user list for Day ${day + 1}...`);
+                      console.log(`Starting broadcast for Day ${day + 1}...`);
                           
-                              // Fetch all users in the workspace
-                                  const response = await client.users.list();
-                                      
-                                          // Filter out deleted accounts, other bots, and the default Slackbot
-                                              const users = response.members.filter(
-                                                    (user) => !user.deleted && !user.is_bot && user.id !== "USLACKBOT"
-                                                        );
+                              // 1. POST TO THE GENERAL CHANNEL FIRST
+                                  try {
+                                        await client.chat.postMessage({
+                                                channel: process.env.CHANNEL_ID, // Pulls the channel ID from your .env
+                                                        text: messages[day]
+                                                              });
+                                                                    console.log("✅ Successfully posted to the main channel!");
+                                                                        } catch (err) {
+                                                                              console.error("❌ Failed to post to main channel:", err.message);
+                                                                                  }
 
-                                                            console.log(`Found ${users.length} active users. Starting DM broadcast...`);
+                                                                                      // 2. FETCH USERS AND SEND INDIVIDUAL DMs
+                                                                                          console.log("Fetching user list for DMs...");
+                                                                                              const response = await client.users.list();
+                                                                                                  
+                                                                                                      const users = response.members.filter(
+                                                                                                            (user) => !user.deleted && !user.is_bot && user.id !== "USLACKBOT"
+                                                                                                                );
 
-                                                                // Loop through each user and send a Direct Message
-                                                                    for (const user of users) {
-                                                                          try {
-                                                                                  await client.chat.postMessage({
-                                                                                            channel: user.id, // Passing a user ID here automatically opens a DM
-                                                                                                      text: messages[day]
-                                                                                                              });
-                                                                                                                      console.log(`Sent message to ${user.profile.real_name || user.name}`);
-                                                                                                                            } catch (err) {
-                                                                                                                                    console.error(`Failed to send to ${user.name}:`, err.message);
-                                                                                                                                          }
-                                                                                                                                                
-                                                                                                                                                      // WAIT 1.5 seconds before sending the next message to prevent getting blocked by Slack
-                                                                                                                                                            await sleep(1500); 
-                                                                                                                                                                }
+                                                                                                                    console.log(`Found ${users.length} active users. Starting DM broadcast...`);
 
-                                                                                                                                                                    console.log(`Successfully finished broadcasting Day ${day + 1}`);
-                                                                                                                                                                        
-                                                                                                                                                                            // Update the state so it moves to the next day
-                                                                                                                                                                                day++;
-                                                                                                                                                                                    fs.writeFileSync(stateFile, JSON.stringify({ currentDay: day }));
+                                                                                                                        for (const user of users) {
+                                                                                                                              try {
+                                                                                                                                      await client.chat.postMessage({
+                                                                                                                                                channel: user.id, 
+                                                                                                                                                          text: messages[day]
+                                                                                                                                                                  });
+                                                                                                                                                                          console.log(`Sent DM to ${user.profile.real_name || user.name}`);
+                                                                                                                                                                                } catch (err) {
+                                                                                                                                                                                        console.error(`Failed to send DM to ${user.name}:`, err.message);
+                                                                                                                                                                                              }
+                                                                                                                                                                                                    
+                                                                                                                                                                                                          await sleep(1500); // 1.5 second delay to prevent rate limits
+                                                                                                                                                                                                              }
 
-                                                                                                                                                                                      } catch (error) {
-                                                                                                                                                                                          console.error("Fatal error during broadcast:", error);
-                                                                                                                                                                                            }
-                                                                                                                                                                                            }
+                                                                                                                                                                                                                  console.log(`Successfully finished broadcasting Day ${day + 1}`);
+                                                                                                                                                                                                                      
+                                                                                                                                                                                                                          day++;
+                                                                                                                                                                                                                              fs.writeFileSync(stateFile, JSON.stringify({ currentDay: day }));
 
-                                                                                                                                                                                            // Schedule the task for 9:00 AM WAT
-                                                                                                                                                                                            cron.schedule("0 9 * * *", () => {
-                                                                                                                                                                                              console.log("Cron job triggered. Starting mass DM...");
-                                                                                                                                                                                                sendDailyMessageToAll();
-                                                                                                                                                                                                }, {
-                                                                                                                                                                                                  timezone: "Africa/Lagos"
-                                                                                                                                                                                                  });
-
-                                                                                                                                                                                                  console.log("Bot is awake and ready to send DMs! Waiting for 9:00 AM...");
+                                                                                                                                                                                                                                } catch (error) {
+                                                                                                                                                                                                                                    console.error("Fatal error during broadcast:", error);
+                                                                                                                                                                                                                                      }
+                                                                                                                                                                                                                                      }
